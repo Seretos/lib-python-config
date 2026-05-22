@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lib-python-config"
-version = "0.1.0"
+version = "0.1.1"
 description = "Generic config-loading utilities: filesystem discovery, YAML/env parsing, env-var-driven path resolution"
 requires-python = ">=3.11"
 authors = [{ name = "Arne von Appen" }]
