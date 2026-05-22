@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lib-python-config"
+version = "0.1.0"
+description = "Generic config-loading utilities: filesystem discovery, YAML/env parsing, env-var-driven path resolution"
+requires-python = ">=3.11"
+authors = [{ name = "Arne von Appen" }]
+dependencies = [
+  "pydantic>=2.0",
+  "ruamel.yaml>=0.18",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
