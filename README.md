@@ -22,7 +22,9 @@ from lib_python_config import (
     LoadResult,
     load_env_file,
     load_yaml,
+    merge_layers,
     resolve_config_path,
+    resolve_config_paths,
     resolve_search_root,
 )
 
@@ -53,6 +55,44 @@ if config_path:
         ...
 ```
 
+## Choosing a resolution semantic
+
+One config file owns the answer → `resolve_config_path`; several files
+contribute and the nearest wins → `resolve_config_paths` + `merge_layers`.
+
+`resolve_config_path` walks the same priority order every time (explicit
+override → plugin-root → enclosing repos, nearest first → home) and stops at
+the first existing file — exactly one file wins, and everything else is
+never even loaded. Use it when a single config file is the whole answer,
+e.g. "load the active plugin config."
+
+`resolve_config_paths` walks the same candidates but keeps going, returning
+every existing file it found, ordered lowest-priority-first (home → outer
+repo → ... → inner repo → plugin-root → override). Pass that list straight
+into `merge_layers` to fold them into one mapping where the more specific
+(nearer, or override) layer wins per key, with unset keys inherited from
+the broader layers underneath. Use it when several layers legitimately
+contribute settings and the nearest one should only override what it
+actually mentions — e.g. `~/.seretos/harness.yml` → `<outer
+repo>/.seretos/harness.yml` → `<inner repo>/.seretos/harness.yml`, inner
+winning per key rather than replacing the whole file.
+
+```python
+from lib_python_config import merge_layers, resolve_config_paths
+from lib_python_config import load_yaml
+
+existing, inspected = resolve_config_paths(
+    cwd,
+    config_dir=".seretos",
+    filenames=("harness.yml", "harness.yaml"),
+)
+
+merged = merge_layers(
+    [load_yaml(path) for path in existing],
+    list_strategy="replace",  # or "append" to concatenate list values
+)
+```
+
 ## Public API
 
 ```python
@@ -67,6 +107,14 @@ resolve_config_path(
     cwd, *, config_dir, filenames,
     override_env=None, plugin_root_env=None, home_default=True,
 ) -> tuple[Path | None, list[Path]]
+resolve_config_paths(
+    cwd, *, config_dir, filenames,
+    override_env=None, plugin_root_env=None, home_default=True,
+) -> tuple[list[Path], list[Path]]  # (existing, inspected)
+
+# Merging
+merge_layers(layers, *, list_strategy="replace") -> dict
+# list_strategy: "replace" (default) or "append"
 
 # Loading
 load_yaml(path) -> dict
@@ -79,5 +127,5 @@ ConfigError  # Exception
 
 ## Versioning
 
-Semantic versioning. Currently `0.1.0` — extracted from `agent-project-issues`,
+Semantic versioning. Currently `0.2.0` — extracted from `agent-project-issues`,
 not yet stabilised for external consumers.
