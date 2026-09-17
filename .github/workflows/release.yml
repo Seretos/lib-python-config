@@ -119,8 +119,14 @@ jobs:
           if [[ "${{ inputs.version }}" == *-* ]]; then
             PRE_FLAG="--prerelease"
           fi
+          PREV_TAG="$(git tag --list 'v*' | python3 .github/scripts/prev_release_tag.py "${{ inputs.version }}")"
+          START_FLAG=""
+          if [[ -n "$PREV_TAG" ]]; then
+            START_FLAG="--notes-start-tag $PREV_TAG"
+          fi
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "$TAG" \
             --generate-notes \
-            $PRE_FLAG
+            $PRE_FLAG \
+            $START_FLAG
