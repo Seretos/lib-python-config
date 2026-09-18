@@ -130,3 +130,13 @@ jobs:
             --generate-notes \
             $PRE_FLAG \
             $START_FLAG
+
+  notify:
+    needs: publish
+    uses: ./.github/workflows/notify-consumers.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets:
+      LIB_PYTHON_PROJECTS_TICKET_TOKEN: ${{ secrets.LIB_PYTHON_PROJECTS_TICKET_TOKEN }}
+      AGENT_PROJECT_ISSUES_TICKET_TOKEN: ${{ secrets.AGENT_PROJECT_ISSUES_TICKET_TOKEN }}
+      AGENT_WORKTREE_TICKET_TOKEN: ${{ secrets.AGENT_WORKTREE_TICKET_TOKEN }}

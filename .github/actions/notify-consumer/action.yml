@@ -1,0 +1,117 @@
+name: "Notify consumer"
+description: >
+  Files or updates a single "chore(deps): update lib-python-config" issue
+  on a direct consumer repo, carrying the release notes, and adds it to
+  Seretos board #2. Idempotent: reuses an existing open issue carrying the
+  marker comment (via consumer_ticket.py's select_existing_issue) instead
+  of creating a duplicate on every release.
+
+inputs:
+  repo:
+    description: "Consumer repo, e.g. Seretos/lib-python-projects"
+    required: true
+  version:
+    description: "Released lib-python-config version, e.g. 0.3.0"
+    required: true
+  tag:
+    description: "Released tag, e.g. v0.3.0"
+    required: true
+  release-url:
+    description: "URL of the lib-python-config GitHub Release"
+    required: true
+  notes-file:
+    description: "Path to a file containing the release notes"
+    required: true
+  token:
+    description: "Per-consumer PAT with repo + project scopes"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Render title and body
+      id: render
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        TITLE="$(python3 "${{ github.action_path }}/../../scripts/consumer_ticket.py" title "${{ inputs.version }}")"
+        BODY="$(python3 "${{ github.action_path }}/../../scripts/consumer_ticket.py" body "${{ inputs.version }}" "${{ inputs.tag }}" "${{ inputs.release-url }}" < "${{ inputs.notes-file }}")"
+        {
+          echo "title=${TITLE}"
+          echo "body<<CONSUMER_TICKET_BODY_EOF"
+          echo "${BODY}"
+          echo "CONSUMER_TICKET_BODY_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Find existing ticket
+      id: existing
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+      run: |
+        set -euo pipefail
+        # Direct issue listing, NOT `gh issue list --search`: search is
+        # eventually consistent and could miss an issue this same
+        # workflow created moments earlier on a previous release,
+        # causing a duplicate. select_existing_issue does the
+        # marker/state matching client-side instead.
+        #
+        # --limit 1000 (not 100): `gh issue list` paginates internally
+        # against GitHub's REST API (which pages 100 at a time) whenever
+        # the requested `--limit` exceeds one page, so this fetches up to
+        # 1000 open issues across as many pages as needed rather than
+        # silently truncating at the first page. 1000 is an arbitrary but
+        # generous ceiling -- none of the three consumer repos this action
+        # targets (lib-python-projects, agent-project-issues,
+        # agent-worktree) is remotely likely to ever carry anywhere near
+        # 1000 simultaneously open issues, so this is a practical
+        # correctness guarantee for the repos this action actually runs
+        # against, not just a bigger magic number.
+        EXISTING="$(gh issue list --repo "$REPO" --state open --limit 1000 --json number,state,body \
+          | python3 "${{ github.action_path }}/../../scripts/consumer_ticket.py" select)"
+        echo "number=${EXISTING}" >> "$GITHUB_OUTPUT"
+
+    - name: Create ticket
+      if: steps.existing.outputs.number == ''
+      id: create
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        TITLE: ${{ steps.render.outputs.title }}
+        BODY: ${{ steps.render.outputs.body }}
+      run: |
+        set -euo pipefail
+        URL="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$BODY")"
+        echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+    - name: Update existing ticket
+      if: steps.existing.outputs.number != ''
+      id: update
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        NUMBER: ${{ steps.existing.outputs.number }}
+        TITLE: ${{ steps.render.outputs.title }}
+        BODY: ${{ steps.render.outputs.body }}
+      run: |
+        set -euo pipefail
+        gh issue edit "$NUMBER" --repo "$REPO" --title "$TITLE" --body "$BODY"
+        URL="$(gh issue view "$NUMBER" --repo "$REPO" --json url -q .url)"
+        echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+    - name: Add to board
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        ISSUE_URL="${{ steps.create.outputs.url }}${{ steps.update.outputs.url }}"
+        # gh project item-add is idempotent for an already-added content
+        # id, so it is safe to call on every run regardless of whether
+        # the ticket was just created or just updated.
+        gh project item-add 2 --owner Seretos --url "$ISSUE_URL"

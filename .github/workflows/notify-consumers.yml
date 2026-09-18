@@ -1,0 +1,94 @@
+name: notify-consumers
+
+# Files or updates one "chore(deps): update lib-python-config" issue per
+# direct consumer repo, carrying that release's notes. Called from
+# release.yml right after a release is published, and also exposed as a
+# standalone workflow_dispatch for manual recovery against an already
+# -published release (e.g. the release ran before this mechanism existed,
+# or a consumer's step failed and needs to be re-run without cutting a new
+# release).
+#
+# Each consumer is notified through its own PAT secret (see README.md
+# "Releasing" section) so a bad/expired token for one consumer only
+# affects that consumer, never the other two. Each notify step is
+# `continue-on-error: true` for the same reason.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Released lib-python-config version, e.g. 0.3.0"
+        required: true
+        type: string
+    secrets:
+      LIB_PYTHON_PROJECTS_TICKET_TOKEN:
+        required: false
+      AGENT_PROJECT_ISSUES_TICKET_TOKEN:
+        required: false
+      AGENT_WORKTREE_TICKET_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released lib-python-config version, e.g. 0.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch release notes and metadata
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ inputs.version }}"
+          gh release view "$TAG" --repo "${{ github.repository }}" --json body,url,tagName \
+            > release.json
+          python3 -c "import json; print(json.load(open('release.json'))['body'])" > release_notes.md
+          URL="$(python3 -c "import json; print(json.load(open('release.json'))['url'])")"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Notify lib-python-projects
+        continue-on-error: true
+        uses: ./.github/actions/notify-consumer
+        with:
+          repo: Seretos/lib-python-projects
+          version: ${{ inputs.version }}
+          tag: ${{ steps.release.outputs.tag }}
+          release-url: ${{ steps.release.outputs.url }}
+          notes-file: release_notes.md
+          token: ${{ secrets.LIB_PYTHON_PROJECTS_TICKET_TOKEN }}
+
+      - name: Notify agent-project-issues
+        continue-on-error: true
+        uses: ./.github/actions/notify-consumer
+        with:
+          repo: Seretos/agent-project-issues
+          version: ${{ inputs.version }}
+          tag: ${{ steps.release.outputs.tag }}
+          release-url: ${{ steps.release.outputs.url }}
+          notes-file: release_notes.md
+          token: ${{ secrets.AGENT_PROJECT_ISSUES_TICKET_TOKEN }}
+
+      - name: Notify agent-worktree
+        continue-on-error: true
+        uses: ./.github/actions/notify-consumer
+        with:
+          repo: Seretos/agent-worktree
+          version: ${{ inputs.version }}
+          tag: ${{ steps.release.outputs.tag }}
+          release-url: ${{ steps.release.outputs.url }}
+          notes-file: release_notes.md
+          token: ${{ secrets.AGENT_WORKTREE_TICKET_TOKEN }}

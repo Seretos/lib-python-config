@@ -129,3 +129,37 @@ ConfigError  # Exception
 
 Semantic versioning. Currently `0.2.0` — extracted from `agent-project-issues`,
 not yet stabilised for external consumers.
+
+## Releasing
+
+`release.yml` (manual `workflow_dispatch`) stamps and tags a new version,
+publishes the GitHub Release, and then calls `notify-consumers.yml`, which
+files or updates one `chore(deps): update lib-python-config` issue per
+direct consumer repo (`Seretos/lib-python-projects`,
+`Seretos/agent-project-issues`, `Seretos/agent-worktree`), carrying that
+release's notes, and adds it to Seretos board #2. Each consumer is notified
+through its own PAT secret so a bad or expired token for one consumer only
+affects that consumer, never the other two:
+
+- `LIB_PYTHON_PROJECTS_TICKET_TOKEN` — for `Seretos/lib-python-projects`
+- `AGENT_PROJECT_ISSUES_TICKET_TOKEN` — for `Seretos/agent-project-issues`
+- `AGENT_WORKTREE_TICKET_TOKEN` — for `Seretos/agent-worktree`
+
+Each secret must be a **classic PAT** with `repo` and `project` scopes on
+its target repo/org. Configure all three as repository secrets on
+**`Seretos/lib-python-config`** (the repo running the workflow, not the
+consumer repos) before the mechanism works end to end. Until they are
+configured, the notify steps are `continue-on-error: true` and fail
+silently — the release still goes green, it just notifies nobody, so set
+these up before relying on it.
+
+`notify-consumers.yml` can also be run standalone via `workflow_dispatch`
+(input `version`) to (re-)notify consumers for a release that already
+exists, without cutting a new one — useful if a consumer's step failed and
+just needs a retry, or if a release was published before this mechanism
+existed.
+
+To add a fourth consumer: add a new PAT secret, add a matching
+`continue-on-error: true` step calling `./.github/actions/notify-consumer`
+in `notify-consumers.yml`, and add that secret to the `secrets:` block
+release.yml passes to `notify-consumers.yml`.
