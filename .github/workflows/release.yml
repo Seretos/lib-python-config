@@ -12,10 +12,13 @@ name: release
 #                                   tags the stamp commit as vX.Y.Z,
 #                                   force-pushes release/Nx (the
 #                                   floating branch downstream consumers
-#                                   pin to), and creates the GitHub
-#                                   Release. `main` is never touched —
-#                                   the bot commit lives only on the
-#                                   release/Nx branch.
+#                                   pin to), creates the GitHub
+#                                   Release, and files dependency-update
+#                                   tickets in consumer repos through the
+#                                   central notify-consumers action.
+#                                   `main` is never touched — the bot
+#                                   commit lives only on the release/Nx
+#                                   branch.
 #
 # Release-branch policy:
 #   release/0.x  — all 0.x.y releases.   Force-pushed each release.
@@ -131,12 +134,15 @@ jobs:
             $PRE_FLAG \
             $START_FLAG
 
-  notify:
-    needs: publish
-    uses: ./.github/workflows/notify-consumers.yml
-    with:
-      version: ${{ inputs.version }}
-    secrets:
-      LIB_PYTHON_PROJECTS_TICKET_TOKEN: ${{ secrets.LIB_PYTHON_PROJECTS_TICKET_TOKEN }}
-      AGENT_PROJECT_ISSUES_TICKET_TOKEN: ${{ secrets.AGENT_PROJECT_ISSUES_TICKET_TOKEN }}
-      AGENT_WORKTREE_TICKET_TOKEN: ${{ secrets.AGENT_WORKTREE_TICKET_TOKEN }}
+      - name: Open dependency-update tickets in consumers
+        continue-on-error: true
+        uses: Seretos/agent-plugin-dev/.github/actions/notify-consumers@main
+        with:
+          version: ${{ inputs.version }}
+          source_repo: ${{ github.repository }}
+          consumers: |
+            Seretos/lib-python-projects
+            Seretos/agent-project-issues
+            Seretos/agent-worktree
+            Seretos/lib-python-harness
+          gh_token: ${{ secrets.ECOSYSTEM_TOKEN }}

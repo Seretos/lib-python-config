@@ -132,34 +132,27 @@ not yet stabilised for external consumers.
 
 ## Releasing
 
-`release.yml` (manual `workflow_dispatch`) stamps and tags a new version,
-publishes the GitHub Release, and then calls `notify-consumers.yml`, which
-files or updates one `chore(deps): update lib-python-config` issue per
-direct consumer repo (`Seretos/lib-python-projects`,
-`Seretos/agent-project-issues`, `Seretos/agent-worktree`), carrying that
-release's notes, and adds it to Seretos board #2. Each consumer is notified
-through its own PAT secret so a bad or expired token for one consumer only
-affects that consumer, never the other two:
+`release.yml` (manual `workflow_dispatch`) stamps and tags a new version and
+publishes the GitHub Release. Its last step, "Open dependency-update tickets
+in consumers", calls the central
+`Seretos/agent-plugin-dev/.github/actions/notify-consumers@main` action to
+file or update one `chore(deps): update lib-python-config` issue per
+consumer repo — `Seretos/lib-python-projects`, `Seretos/agent-project-issues`,
+`Seretos/agent-worktree` and `Seretos/lib-python-harness` — carrying that
+release's notes. The central action owns the ticket text, labels and board
+placement.
 
-- `LIB_PYTHON_PROJECTS_TICKET_TOKEN` — for `Seretos/lib-python-projects`
-- `AGENT_PROJECT_ISSUES_TICKET_TOKEN` — for `Seretos/agent-project-issues`
-- `AGENT_WORKTREE_TICKET_TOKEN` — for `Seretos/agent-worktree`
+The step authenticates with `ECOSYSTEM_TOKEN`, a **classic PAT** with `repo`
+and `project` scope covering all four consumer repos. A human sets it as a
+repository secret on **`Seretos/lib-python-config`** (the repo running the
+workflow, not the consumer repos). Until it is configured, the step is
+`continue-on-error: true` and fails silently — the release still goes green,
+it just notifies nobody, so set it up before relying on it.
 
-Each secret must be a **classic PAT** with `repo` and `project` scopes on
-its target repo/org. Configure all three as repository secrets on
-**`Seretos/lib-python-config`** (the repo running the workflow, not the
-consumer repos) before the mechanism works end to end. Until they are
-configured, the notify steps are `continue-on-error: true` and fail
-silently — the release still goes green, it just notifies nobody, so set
-these up before relying on it.
+To (re-)notify consumers for a release that already exists — e.g. the step
+failed and just needs a retry, or a release was published before this
+mechanism existed — use the meta-repo's `open-dep-ticket` workflow instead of
+cutting a new release.
 
-`notify-consumers.yml` can also be run standalone via `workflow_dispatch`
-(input `version`) to (re-)notify consumers for a release that already
-exists, without cutting a new one — useful if a consumer's step failed and
-just needs a retry, or if a release was published before this mechanism
-existed.
-
-To add a fourth consumer: add a new PAT secret, add a matching
-`continue-on-error: true` step calling `./.github/actions/notify-consumer`
-in `notify-consumers.yml`, and add that secret to the `secrets:` block
-release.yml passes to `notify-consumers.yml`.
+To add a consumer, add one line to the `consumers:` input of the
+"Open dependency-update tickets in consumers" step in `release.yml`.
