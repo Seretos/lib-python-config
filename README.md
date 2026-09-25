@@ -135,16 +135,16 @@ not yet stabilised for external consumers.
 `release.yml` (manual `workflow_dispatch`) stamps and tags a new version and
 publishes the GitHub Release. Its last step, "Open dependency-update tickets
 in consumers", calls the central
-`Seretos/agent-plugin-dev/.github/actions/notify-consumers@main` action to
+`seretos-agents/modular-software-factory-dev/.github/actions/notify-consumers@main` action to
 file or update one `chore(deps): update lib-python-config` issue per
-consumer repo — `Seretos/lib-python-projects`, `Seretos/agent-project-issues`,
-`Seretos/agent-worktree` and `Seretos/lib-python-harness` — carrying that
+consumer repo — `seretos-agents/lib-python-projects`, `seretos-agents/agent-project-issues`,
+`seretos-agents/agent-worktree` and `seretos-agents/lib-python-harness` — carrying that
 release's notes. The central action owns the ticket text, labels and board
 placement.
 
 The step authenticates with `ECOSYSTEM_TOKEN`, a **classic PAT** with `repo`
 and `project` scope covering all four consumer repos. A human sets it as a
-repository secret on **`Seretos/lib-python-config`** (the repo running the
+repository secret on **`seretos-agents/lib-python-config`** (the repo running the
 workflow, not the consumer repos). Until it is configured, the step is
 `continue-on-error: true` and fails silently — the release still goes green,
 it just notifies nobody, so set it up before relying on it.

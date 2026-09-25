@@ -135,14 +135,15 @@ jobs:
             $START_FLAG
 
       - name: Open dependency-update tickets in consumers
-        continue-on-error: true
-        uses: Seretos/agent-plugin-dev/.github/actions/notify-consumers@main
+        # A failure here fails the release run itself -- silently missing
+        # bump tickets is worse than a red run.
+        uses: seretos-agents/modular-software-factory-dev/.github/actions/notify-consumers@main
         with:
           version: ${{ inputs.version }}
           source_repo: ${{ github.repository }}
           consumers: |
-            Seretos/lib-python-projects
-            Seretos/agent-project-issues
-            Seretos/agent-worktree
-            Seretos/lib-python-harness
+            seretos-agents/lib-python-projects
+            seretos-agents/agent-project-issues
+            seretos-agents/agent-worktree
+            seretos-agents/lib-python-harness
           gh_token: ${{ secrets.ECOSYSTEM_TOKEN }}
