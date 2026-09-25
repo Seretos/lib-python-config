@@ -145,9 +145,8 @@ placement.
 The step authenticates with `ECOSYSTEM_TOKEN`, a **classic PAT** with `repo`
 and `project` scope covering all four consumer repos. A human sets it as a
 repository secret on **`seretos-agents/lib-python-config`** (the repo running the
-workflow, not the consumer repos). Until it is configured, the step is
-`continue-on-error: true` and fails silently — the release still goes green,
-it just notifies nobody, so set it up before relying on it.
+workflow, not the consumer repos). Until it is configured, the step fails
+and the release run goes red — set it up before relying on it.
 
 To (re-)notify consumers for a release that already exists — e.g. the step
 failed and just needs a retry, or a release was published before this
